@@ -1,0 +1,107 @@
+import os
+import datetime
+from tkinter import *
+from tkinter import messagebox, scrolledtext
+from cryptography.fernet import Fernet
+
+KEY_FILE = "secret.key"
+DIARY_FILE = "diary.txt"
+PASSWORD = "mySecret123"  
+
+def load_key():
+    if os.path.exists(KEY_FILE):
+        with open(KEY_FILE, "rb") as key_file:
+            return key_file.read()
+    else:
+        key = Fernet.generate_key()
+        with open(KEY_FILE, "wb") as key_file:
+            key_file.write(key)
+        return key
+
+def encrypt(text, fernet):
+    return fernet.encrypt(text.encode())
+
+def decrypt(text, fernet):
+    return fernet.decrypt(text).decode()
+
+fernet = Fernet(load_key())
+
+class DiaryApp:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Secret Diary")
+        self.root.geometry("500x500")
+        self.root.configure(bg="#fff6e0")
+        self.login_screen()
+
+    def login_screen(self):
+        self.clear_widgets()
+        Label(self.root, text="Enter Password", font=("Arial", 14), bg="#fff6e0").pack(pady=20)
+        self.pass_entry = Entry(self.root, show="*", font=("Arial", 12))
+        self.pass_entry.pack(pady=10)
+        Button(self.root, text="Login", font=("Arial", 12), command=self.check_password, bg="#ffcc70").pack(pady=10)
+
+    def check_password(self):
+        if self.pass_entry.get() == PASSWORD:
+            self.main_menu()
+        else:
+            messagebox.showerror("Error", "Wrong Password!")
+
+    def main_menu(self):
+        self.clear_widgets()
+        Label(self.root, text="Secret Diary", font=("Arial", 18, "bold"), bg="#fff6e0").pack(pady=20)
+
+        Button(self.root, text="Add New Entry", font=("Arial", 12), width=20, bg="#ffcc70", command=self.add_entry).pack(pady=10)
+        Button(self.root, text="View Entries", font=("Arial", 12), width=20, bg="#ffcc70", command=self.view_entries).pack(pady=10)
+        Button(self.root, text="Exit", font=("Arial", 12), width=20, bg="#ffcc70", command=self.root.quit).pack(pady=10)
+
+    def add_entry(self):
+        self.clear_widgets()
+        Label(self.root, text="Write your entry", font=("Arial", 14), bg="#fff6e0").pack(pady=10)
+
+        self.text_area = scrolledtext.ScrolledText(self.root, width=50, height=10, font=("Arial", 12))
+        self.text_area.pack(pady=10)
+
+        Button(self.root, text="Save Entry", font=("Arial", 12), bg="#ffcc70", command=self.save_entry).pack(pady=10)
+        Button(self.root, text="Back", font=("Arial", 12), command=self.main_menu).pack()
+
+    def save_entry(self):
+        content = self.text_area.get("1.0", END).strip()
+        if content:
+            date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            full_entry = f"{date}\n{content}\n{'-'*40}\n"
+            encrypted = encrypt(full_entry, fernet)
+            with open(DIARY_FILE, "ab") as f:
+                f.write(encrypted + b"\n")
+            messagebox.showinfo("Saved", "Your secret is safe!")
+            self.main_menu()
+        else:
+            messagebox.showwarning("Empty", "Entry is empty!")
+
+    def view_entries(self):
+        self.clear_widgets()
+        Label(self.root, text="Your Entries", font=("Arial", 14), bg="#fff6e0").pack(pady=10)
+
+        text_display = scrolledtext.ScrolledText(self.root, width=60, height=15, font=("Arial", 10))
+        text_display.pack(pady=10)
+
+        if os.path.exists(DIARY_FILE):
+            with open(DIARY_FILE, "rb") as f:
+                for line in f:
+                    try:
+                        decrypted = decrypt(line.strip(), fernet)
+                        text_display.insert(END, decrypted + "\n")
+                    except:
+                        text_display.insert(END, "[Could not decrypt entry]\n")
+        else:
+            text_display.insert(END, "No entries yet.")
+
+        Button(self.root, text="Back", font=("Arial", 12), command=self.main_menu).pack(pady=10)
+
+    def clear_widgets(self):
+        for widget in self.root.winfo_children():
+            widget.destroy()
+if __name__ == "__main__":
+    root = Tk()
+    app = DiaryApp(root)
+    root.mainloop()
